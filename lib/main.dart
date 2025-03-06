@@ -1,122 +1,269 @@
 import 'package:flutter/material.dart';
+import 'database_helper.dart';
 
 void main() {
-  runApp(const MyApp());
+  runApp(CardOrganizerApp());
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-
-  // This widget is the root of your application.
+class CardOrganizerApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
-      theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // TRY THIS: Try running your application with "flutter run". You'll see
-        // the application has a purple toolbar. Then, without quitting the app,
-        // try changing the seedColor in the colorScheme below to Colors.green
-        // and then invoke "hot reload" (save your changes or press the "hot
-        // reload" button in a Flutter-supported IDE, or press "r" if you used
-        // the command line to start the app).
-        //
-        // Notice that the counter didn't reset back to zero; the application
-        // state is not lost during the reload. To reset the state, use hot
-        // restart instead.
-        //
-        // This works for code too, not just values: Most code changes can be
-        // tested with just a hot reload.
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-      ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
+      title: 'Card Organizer',
+      theme: ThemeData(primarySwatch: Colors.blue),
+      home: FolderScreen(),
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
-
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
-  final String title;
-
+class FolderScreen extends StatefulWidget {
   @override
-  State<MyHomePage> createState() => _MyHomePageState();
+  _FolderScreenState createState() => _FolderScreenState();
 }
 
-class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
+class _FolderScreenState extends State<FolderScreen> {
+  List<Map<String, dynamic>> folders = [];
+  final dbHelper = DatabaseHelper.instance;
 
-  void _incrementCounter() {
+  @override
+  void initState() {
+    super.initState();
+    _loadFolders();
+  }
+
+  void _loadFolders() async {
+    final data = await dbHelper.fetchFolders();
     setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
+      folders = data;
     });
+  }
+
+  void _showFolderDialog() {
+    final folderController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('Add New Folder'),
+          content: TextField(
+            controller: folderController,
+            decoration: InputDecoration(labelText: 'Folder Name'),
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () async {
+                String folderName = folderController.text.trim();
+                if (folderName.isNotEmpty) {
+                  await dbHelper.insertFolder({'name': folderName});
+                  _loadFolders();
+                  Navigator.pop(context);  // Close the dialog
+                }
+              },
+              child: Text('Add'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);  // Close the dialog without saving
+              },
+              child: Text('Cancel'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
     return Scaffold(
-      appBar: AppBar(
-        // TRY THIS: Try changing the color here to a specific color (to
-        // Colors.amber, perhaps?) and trigger a hot reload to see the AppBar
-        // change color while the other colors stay the same.
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
-      ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
-        child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          //
-          // TRY THIS: Invoke "debug painting" (choose the "Toggle Debug Paint"
-          // action in the IDE, or press "p" in the console), to see the
-          // wireframe for each widget.
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            const Text('You have pushed the button this many times:'),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headlineMedium,
-            ),
-          ],
+      appBar: AppBar(title: Text('Card Organizer')),
+      body: GridView.builder(
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          crossAxisSpacing: 10,
+          mainAxisSpacing: 10,
         ),
+        itemCount: folders.length,
+        itemBuilder: (context, index) {
+          final folder = folders[index];
+          return GestureDetector(
+            onTap: () {
+              // Navigate to CardsScreen for the selected folder
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => CardsScreen(folderId: folder['id']),
+                ),
+              );
+            },
+            child: Card(
+              elevation: 4,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Image.network(
+                    'https://deckofcardsapi.com/static/img/${folder['name'][0].toUpperCase()}${folder['name'][1].toUpperCase()}.png',
+                    height: 80,
+                    width: 80,
+                    fit: BoxFit.contain,
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: Text(
+                      folder['name'],
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  Text(
+                    '${folder['cardCount']} cards',
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
-      ), // This trailing comma makes auto-formatting nicer for build methods.
+        onPressed: () {
+          print('Add button pressed'); // Debugging line
+          _showFolderDialog(); // Call to show the dialog
+        },
+        child: Icon(Icons.add),
+        tooltip: 'Add Folder',
+      ),
+    );
+  }
+}
+
+class CardsScreen extends StatefulWidget {
+  final int folderId;
+
+  CardsScreen({required this.folderId});
+
+  @override
+  _CardsScreenState createState() => _CardsScreenState();
+}
+
+class _CardsScreenState extends State<CardsScreen> {
+  List<Map<String, dynamic>> cards = [];
+  final dbHelper = DatabaseHelper.instance;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCards();
+  }
+
+  void _loadCards() async {
+    final data = await dbHelper.fetchCardsForFolder(widget.folderId);
+    setState(() {
+      cards = data;
+    });
+  }
+
+  void _addCard() async {
+    if (cards.length >= 6) {
+      _showErrorDialog("This folder can only hold 6 cards.");
+      return;
+    }
+
+    // Sample logic to add card (this can be updated based on user selection)
+    await dbHelper.insertCard({
+      'name': 'Ace of Hearts',
+      'suit': 'Hearts',
+      'imageUrl': 'https://deckofcardsapi.com/static/img/AH.png',
+      'folderId': widget.folderId,
+    });
+
+    _loadCards(); // Refresh the list of cards
+  }
+
+  void _deleteCard(int cardId) async {
+    await dbHelper.deleteCard(cardId);
+    _loadCards(); // Refresh the list after deletion
+  }
+
+  void _showErrorDialog(String message) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('Error'),
+          content: Text(message),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+              },
+              child: Text('OK'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showWarningDialog(String message) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('Warning'),
+          content: Text(message),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+              },
+              child: Text('OK'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text('Cards in Folder')),
+      body: GridView.builder(
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 3,
+          crossAxisSpacing: 10,
+          mainAxisSpacing: 10,
+        ),
+        itemCount: cards.length,
+        itemBuilder: (context, index) {
+          final card = cards[index];
+          return Card(
+            elevation: 4,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            child: GestureDetector(
+              onTap: () {
+                // Logic to update or view card details (can be expanded as required)
+              },
+              child: Column(
+                children: [
+                  Image.network(card['imageUrl'], height: 80, width: 80, fit: BoxFit.contain),
+                  Text(card['name']),
+                  IconButton(
+                    icon: Icon(Icons.delete),
+                    onPressed: () => _deleteCard(card['id']),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _addCard,
+        child: Icon(Icons.add),
+        tooltip: 'Add Card',
+      ),
     );
   }
 }
